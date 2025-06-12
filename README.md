@@ -10,6 +10,8 @@ Current plans:
 - Make base functionality work (done?)
   - Fix bug where page buttons don't update when they should (annoying af, reversing ui elements takes forever)
 - Add support to find and track (pin to main UI?) jokers in the shop.
+- Add support for shop packs, vouchers, etc
+  - Maybe find a way to view results of skip tag jokers? (specifically uncommon/rare as edition tags apply to the next joker)
 
 
 I want to thank Balatro University for being a partial inspiration for me making this mod, and for all of the great content he puts out. Without you, Doc, I would not have the same love for this game that I do. 
