@@ -27,7 +27,7 @@ function generateShop(count)
 			--c.remove()
 		end
 		Showman.SEEK.ANTE[a] = cards
-		sendDebugMessage("Ante "..(a).." > "..output)
+		--sendDebugMessage("Ante "..(a).." > "..output)
 	end
 	--sendDebugMessage(Showman.SEEK.ANTE[0])
 	return output, cards
@@ -59,7 +59,7 @@ function generateShopAnte(count, ab)
 			--c.remove()
 		end
 		Showman.SEEK.ANTE[a] = cards
-		sendDebugMessage("Ante "..(a).." > "..output.."\ncards# "..#cards)
+		--sendDebugMessage("Ante "..(a).." > "..output.."\ncards# "..#cards)
 	end
 	--sendDebugMessage(Showman.SEEK.ANTE[0])
 	return output, cards, editions
@@ -89,9 +89,9 @@ function generateShopUntil(joker_name)
 		--c:remove()
 	end
 	if count >= 1000 then
-		sendDebugMessage("Could not find "..joker_name.." in "..count.." items!")
+		--sendDebugMessage("Could not find "..joker_name.." in "..count.." items!")
 	else
-		sendDebugMessage("Search for "..joker_name.." - Found after "..count.." items! > "..output)
+		--sendDebugMessage("Search for "..joker_name.." - Found after "..count.." items! > "..output)
 	end
 
 	return output, cards

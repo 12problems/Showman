@@ -97,11 +97,11 @@ G.FUNCS.analyze = function(x)
 				Showman.ui_card_area[j]:emplace(card)
 			end
 		end
-		local tab = G.OVERLAY_MENU:get_UIE_by_ID('showman_ui_tab')
-		local a = tab.UIBox:get_UIE_by_ID('ante_cycle_page')
-		a.config.current_option = 1
-		a.UIBox:recalculate()
-		tab.UIBox:recalculate()
+		--local tab = G.OVERLAY_MENU:get_UIE_by_ID('showman_ui_tab')
+		--local a = tab.UIBox:get_UIE_by_ID('ante_cycle_page')
+		--a.config.current_option = 1
+		--a.UIBox:recalculate()
+		--tab.UIBox:recalculate()
 		--G.OVERLAY_MENU:recalculate()
 	end
 end
@@ -352,7 +352,7 @@ function create_tabs(args)
 									n = G.UIT.R,
 									config = {
 										align = "cm",
-										func = "test_update_menu"
+										--func = "test_update_menu"
 									},
 									nodes = {
 										create_option_cycle(
@@ -393,8 +393,36 @@ G.FUNCS.test_update_menu = function(e)
 		return
 	end
 	if Showman.ui.last_page ~= Showman.ui_search_page then
-		
-		local menu_uibox = e.nodes[1]
+		--get the option cycle page
+		local menu_uibox = e.config.object
+		--get the parent
+		local menu_wrap = menu_uibox.parent
+		--delete current menu
+		menu_wrap.config.object:remove()
+		--crete new
+		menu_wrap.config.object = UIBox({
+			definition = create_option_cycle(
+				{
+					id = 'showman_joker_page',
+					options = Showman.joker_options,
+					w = 4,
+					h = 0.3,
+					cycle_shoulders = true, 
+					opt_callback = 'showman_ui_joker_page',
+					--func = 'showman_ui_joker_page_update',
+					current_option = Showman.ui_search_page or 1,
+					colour = G.C.PURPLE,
+					no_pips = true,
+					focus_args = {snap_to = true, nav = 'wide'}
+				}
+			),
+			config = {
+				parent = menu_wrap
+			}
+		})
+		--update ui
+		menu_wrap.UIBox:recalculate()
+
 
 	end
 end
@@ -438,7 +466,7 @@ end
 
 G.FUNCS.showman_ui_joker_page_update = function(e)
 	e.config.current_option = Showman.ui_search_page
-	e.UIBox:recalculate()
+	--e.UIBox:recalculate()
 end
 
 G.FUNCS.showman_ui_joker_page = function(args)
