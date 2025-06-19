@@ -89,7 +89,7 @@ G.FUNCS.analyze = function(x)
 				local edition = editions[(i+(j-1)*Showman.SEEK.card_count + (Showman.SEEK.card_count*#Showman.ui_card_area*(Showman.ui_search_page - 1)))-1]
 				if edition == "Foil" then edition = {foil = true} 
 				elseif edition == "Holo" then edition = {holo = true}
-				elseif edition == "Polychrome" then edition = {poly = true}
+				elseif edition == "Polychrome" then edition = {polychrome = true}
 				elseif edition == "Negative" then edition = {negative = true}
 				else edition = nil end
 				card:set_edition(edition, true, true)
@@ -173,7 +173,7 @@ function create_tabs(args)
 							elseif edition == "Holo" then
 								edition = {holo = true}
 							elseif edition == "Polychrome" then 
-								edition = {poly = true}
+								edition = {polychrome = true}
 							elseif edition == "Negative" then 
 								edition = {negative = true}
 							else 
@@ -506,7 +506,7 @@ G.FUNCS.showman_ui_joker_page = function(args)
 			local edition = Showman.ui_editions[(i+(j-1)*Showman.SEEK.card_count + (Showman.SEEK.card_count*#Showman.ui_card_area*(Showman.ui_search_page - 1)))-1]
 			if edition == "Foil" then edition = {foil = true} 
 			elseif edition == "Holo" then edition = {holo = true}
-			elseif edition == "Polychrome" then edition = {poly = true}
+			elseif edition == "Polychrome" then edition = {polychrome = true}
 			elseif edition == "Negative" then edition = {negative = true}
 			else edition = nil end
 			card:set_edition(edition, true, true)
