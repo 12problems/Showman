@@ -12,6 +12,7 @@ Current plans:
 - Add support to find and track (pin to main UI?) jokers in the shop.
 - Add support for shop packs, vouchers, etc
   - Maybe find a way to view results of skip tag jokers? (specifically uncommon/rare as edition tags apply to the next joker)
+- Clean up code :)
 
 
 I want to thank Balatro University for being a partial inspiration for me making this mod, and for all of the great content he puts out. Without you, Doc, I would not have the same love for this game that I do. 
