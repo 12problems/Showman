@@ -27,9 +27,7 @@ function generateShop(count)
 			--c.remove()
 		end
 		Showman.SEEK.ANTE[a] = cards
-		--sendDebugMessage("Ante "..(a).." > "..output)
 	end
-	--sendDebugMessage(Showman.SEEK.ANTE[0])
 	return output, cards
 end
 
@@ -56,12 +54,9 @@ function generateShopAnte(count, ab)
             else
 				output = output..(e).." "..(c)
 			end
-			--c.remove()
 		end
 		Showman.SEEK.ANTE[a] = cards
-		--sendDebugMessage("Ante "..(a).." > "..output.."\ncards# "..#cards)
 	end
-	--sendDebugMessage(Showman.SEEK.ANTE[0])
 	return output, cards, editions
 end
 
@@ -85,8 +80,6 @@ function generateShopUntil(joker_name)
 			output = output..(e).." "..(c)
 		end
 		count = count + 1
-		--sendDebugMessage(count)
-		--c:remove()
 	end
 	if count >= 1000 then
 		--sendDebugMessage("Could not find "..joker_name.." in "..count.." items!")
@@ -98,8 +91,6 @@ function generateShopUntil(joker_name)
 end
 
 function create_pseudocard_for_shop(ante)
-	--if area == G.shop_jokers and G.SETTINGS.tutorial_progress and G.SETTINGS.tutorial_progress.forced_shop and G.SETTINGS.tutorial_progress.forced_shop[#G.SETTINGS.tutorial_progress.forced_shop] then
-	--local t = G.SETTINGS.tutorial_progress.forced_shop
 	local _center = G.P_CENTERS.c_empress
 	local card = "" --Card(0, 0, 0, 0, G.P_CARDS.empty, _center, {bypass_discovery_center = true, bypass_discovery_ui = true})
 
@@ -118,15 +109,12 @@ function create_pseudocard_for_shop(ante)
 	}) do
 		if polled_rate > check_rate and polled_rate <= check_rate + v.val then
 			card, edition = Showman.FUNC.create_card(v.type, nil, nil, nil, nil, nil, nil, 'sho', ante)
-			--create_shop_card_ui(card, v.type, area)
 			if (v.type == 'Base' or v.type == 'Enhanced') and G.GAME.used_vouchers["v_illusion"] and Showman.FUNC.pseudorandom(Showman.FUNC.pseudoseed('illusion')) > 0.8 then 
 				local edition_poll = Showman.FUNC.pseudorandom(Showman.FUNC.pseudoseed('illusion'))
 				if edition_poll > 1 - 0.15 then edition = "Polychrome"
 				elseif edition_poll > 0.5 then edition = "Holo"
 				else edition = "Foil"
 				end
-				--sendDebugMessage(edition)
-				--card:set_edition(edition)
 			end
 			return card, edition
 		end
@@ -208,7 +196,6 @@ end
 function Showman.FUNC.create_card(_type, area, legendary, _rarity, skip_materialize, soulable, forced_key, key_append, ante)
     local area = area or G.jokers
     local center = G.P_CENTERS.b_red
-        
 
     --should pool be skipped with a forced key
     if not forced_key and soulable and (not G.GAME.banned_keys['c_soul']) then
@@ -263,11 +250,9 @@ function Showman.FUNC.create_card(_type, area, legendary, _rarity, skip_material
         end
 
         edition = Showman.FUNC.poll_edition('edi'..(key_append or '')..ante)
-        --card:set_edition(edition)
     end
 
 	return center.name, edition
-    --return card
 end
 
 function Showman.FUNC.poll_edition(_key, _mod, _no_neg, _guaranteed)

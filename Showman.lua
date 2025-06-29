@@ -3,11 +3,6 @@ Showman.config = {}
 
 Showman.config = {
   enable = true,
-  debug_mode = false,
-  keybinds = {
-    a = "t",
-    b = "lctrl",
-  },
   SEEK = {
     search_depth = 100,
     search_depthID = 1,
@@ -26,6 +21,7 @@ function initShowman()
 	Showman.PATH = findShowmanDirectory(lovely.mod_dir)
 	Showman.loadConfig()
 	assert(load(nativefs.read(lovely.mod_dir .. "/Showman/Showman_UI.lua")))()
+  assert(load(nativefs.read(lovely.mod_dir .. "/Showman/hash.lua")))()
 
 end
 
