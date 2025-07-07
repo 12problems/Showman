@@ -18,3 +18,10 @@ Current plans:
 I want to thank Balatro University for being a partial inspiration for me making this mod, and for all of the great content he puts out. Without you, Doc, I would not have the same love for this game that I do. 
 
 Also a special thanks to the creators of the Brainstorm mod which was heavily influencial as source material for both creating a mod from scratch and touching RNG elements.
+
+
+
+INSTRUCTIONS:
+In the Options menu, you can find the tab for the Showman mod. 
+Choose which ante you want to view, how many shop items you want to list, and click the "Analyze" button. You can flip through the pages and see all of the items which will appear in the shop.
+Choosing "Apply Showmman?" simulates if you have the Showman joker, in case you're trying to predict duplicates of the same kind you already have. 
