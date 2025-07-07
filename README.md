@@ -22,6 +22,9 @@ Also a special thanks to the creators of the Brainstorm mod which was heavily in
 
 
 INSTRUCTIONS:
+
 In the Options menu, you can find the tab for the Showman mod. 
+
 Choose which ante you want to view, how many shop items you want to list, and click the "Analyze" button. You can flip through the pages and see all of the items which will appear in the shop.
+
 Choosing "Apply Showmman?" simulates if you have the Showman joker, in case you're trying to predict duplicates of the same kind you already have. 
