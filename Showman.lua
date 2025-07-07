@@ -21,7 +21,6 @@ function initShowman()
 	Showman.PATH = findShowmanDirectory(lovely.mod_dir)
 	Showman.loadConfig()
 	assert(load(nativefs.read(lovely.mod_dir .. "/Showman/Showman_UI.lua")))()
-  assert(load(nativefs.read(lovely.mod_dir .. "/Showman/hash.lua")))()
 
 end
 
