@@ -6,8 +6,8 @@ function Showman.key_press_update(key)
 	--  Print
 	--sendDebugMessage(key.." pressed a")
 	if key == "p" then
-		generateShop(1000)
+		--generateShop(1000)
 	elseif key == "l" then
-		generateShopUntil("Ride the Bus")
+		--generateShopUntil("Ride the Bus")
 	end
 end
