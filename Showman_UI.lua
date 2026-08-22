@@ -13,6 +13,23 @@ G.FUNCS.change_search_queue = function(x)
 	Showman.writeConfig()
 end
 
+G.FUNCS.change_search_ante = function(x)
+	Showman.config.SEEK.search_ante = x.to_val
+	Showman.writeConfig()
+end
+
+G.FUNCS.set_to_current_ante = function(x)
+	if G.STAGE == G.STAGES.RUN then
+		Showman.config.SEEK.search_ante = G.GAME.round_resets.ante
+		Showman.writeConfig()
+		local ante_page_cycle = G.OVERLAY_MENU:get_UIE_by_ID("ante_cycle_page")
+		local ref = ante_page_cycle.children[1].config.ref_table
+		ref.current_option = Showman.config.SEEK.search_ante
+		ref.current_option_val = ref.options[ref.current_option]
+		ante_page_cycle.children[1].UIBox:recalculate()
+	end
+end
+
 G.FUNCS.change_search_depth = function(x)
 	Showman.config.SEEK.search_depth = x.to_val
 	Showman.config.SEEK.search_depthID = x.to_key
@@ -109,6 +126,7 @@ G.FUNCS.options = function(e)
 end
 
 Showman.antes = {"Shop", "Rare Queue", "Wraith/Rare Skip", "Judgement", "Spectral (Shop)", "Spectral (Pack)", "Tarot (Pack)"}
+Showman.ante_options = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39}
 
 Showman.ui_card_area = {}
 Showman.joker_options = {}
@@ -205,7 +223,7 @@ function create_tabs(args)
 									},
 									nodes = {
 										create_option_cycle({
-											id = 'ante_cycle_page',
+											id = 'queue_cycle_page',
 											options = Showman.antes,
 											w = 4,
 											h = 0.3,
@@ -218,7 +236,43 @@ function create_tabs(args)
 										})
 									}
 								},
-								--[[{
+								{
+									n = G.UIT.R,
+									config = {
+										align = "tm"
+									},
+									nodes = {
+										{
+											n = G.UIT.T,
+											config = {
+												text = "Ante",
+												colour = G.C.WHITE,
+												scale = 0.45
+											}
+										}
+									}
+								},
+								{
+									n = G.UIT.R,
+									config = {
+										align = "cm"
+									},
+									nodes = {
+										create_option_cycle({
+											id = 'ante_cycle_page',
+											options = Showman.ante_options,
+											w = 4,
+											h = 0.3,
+											cycle_shoulders = true,
+											opt_callback = "change_search_ante",
+											current_option = Showman.config.SEEK.search_ante or 1,
+											colour = G.C.PURPLE,
+											no_pips = true,
+											focus_args = {snap_to = true, nav = 'wide'}
+										})
+									}
+								},
+								{
 									n = G.UIT.R,
 									config = {
 										align = "cm",
@@ -231,7 +285,7 @@ function create_tabs(args)
 											colour = G.C.PURPLE
 										})
 									}
-								},]]
+								},
 								{
 									n = G.UIT.R,
 									config = {

@@ -8,6 +8,7 @@ Showman.config = {
     search_depthID = 1,
     search_queue = "Shop",
     search_queueID = 1,
+    search_ante = 1,
     apply_showman = false,
   },
 }

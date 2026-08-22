@@ -4,6 +4,18 @@ Showman.SEEK.GAME.pseudorandom = {}
 Showman.SEEK.GAME.pseudorandom.seed = 0
 Showman.SEEK.GAME.pseudorandom.hashed_seed = 0
 
+-- Resolves which ante to generate against: the user-selected ante, unless an
+-- external strategy overrides it via Showman.FUNC.ante_override_hook (set by
+-- Showman_order.lua to force ante 0 while The Order is active, matching the real
+-- game's ante-zeroing for card RNG - The Order is the only thing that does this;
+-- normal single-player prediction needs the actual selected ante).
+local function resolve_search_ante()
+    local ante = Showman.config.SEEK.search_ante or 1
+    if Showman.FUNC.ante_override_hook then
+        ante = Showman.FUNC.ante_override_hook(ante)
+    end
+    return ante
+end
 
 function generateWithOptions(count, queue)
     Showman.SEEK.ANTE = {}
@@ -11,12 +23,13 @@ function generateWithOptions(count, queue)
 	Showman.SEEK.GAME.pseudorandom = shallowcopy(G.GAME.pseudorandom)
 	Showman.SEEK.GAME.pseudorandom.seed = G.GAME.pseudorandom.seed
 	Showman.SEEK.GAME.pseudorandom.hashed_seed = G.GAME.pseudorandom.hashed_seed
+    local ante = resolve_search_ante()
     output = ""
     cards = {}
     editions = {}
     stickers = {}
     for i=0,count-1 do
-        c, e, s, k = create_pseudocard_for_options(0, Showman.config.SEEK.search_queue)
+        c, e, s, k = create_pseudocard_for_options(ante, Showman.config.SEEK.search_queue)
         if output ~= "" then output = output..", " end
         cards[i] = k
         editions[i] = e
@@ -37,6 +50,7 @@ function generateShopUntil(joker_name)
 	Showman.SEEK.GAME.pseudorandom = shallowcopy(G.GAME.pseudorandom)
 	Showman.SEEK.GAME.pseudorandom.seed = G.GAME.pseudorandom.seed
 	Showman.SEEK.GAME.pseudorandom.hashed_seed = G.GAME.pseudorandom.hashed_seed
+    local ante = resolve_search_ante()
 
 	c = ""
 	e = ""
@@ -44,7 +58,7 @@ function generateShopUntil(joker_name)
 	output = ""
 	cards = {}
 	while c ~= joker_name and count < Showman.config.SEEK.search_depth do
-		c, e = create_pseudocard_for_options(0, Showman.config.SEEK.search_queue)
+		c, e = create_pseudocard_for_options(ante, Showman.config.SEEK.search_queue)
 		cards[count] = e and (e.." "..c) or c
 		if output ~= "" then output = output..", " end
 		if(e == "" or e == nil) then
@@ -165,6 +179,11 @@ Showman.FUNC = {}
 -- multiplayer awareness). Showman_order.lua sets this to exclude pool items using
 -- the Multiplayer mod's ruleset when The Order is active. See get_current_pool.
 Showman.FUNC.pool_exclude_hook = nil
+
+-- Optional hook: function(ante) -> ante. Nil by default (plain engine, no
+-- multiplayer awareness). Showman_order.lua sets this to force ante 0 while The
+-- Order is active. See resolve_search_ante.
+Showman.FUNC.ante_override_hook = nil
 
 function Showman.FUNC.pseudorandom_element(_t, seed)
   if seed then math.randomseed(seed) end
