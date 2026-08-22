@@ -15,13 +15,12 @@ local lovely = require("lovely")
 local nativefs = require("nativefs")
 
 function initShowman()
-	assert(load(nativefs.read(lovely.mod_dir .. "/Showman/Showman_main.lua")))()
-	assert(load(nativefs.read(lovely.mod_dir .. "/Showman/Showman_keyhandler.lua")))()
-	assert(load(nativefs.read(lovely.mod_dir .. "/Showman/Showman_seek.lua")))()
 	Showman.PATH = findShowmanDirectory(lovely.mod_dir)
+	assert(load(nativefs.read(Showman.PATH .. "/Showman_main.lua")))()
+	assert(load(nativefs.read(Showman.PATH .. "/Showman_keyhandler.lua")))()
+	assert(load(nativefs.read(Showman.PATH .. "/Showman_seek.lua")))()
 	Showman.loadConfig()
-	assert(load(nativefs.read(lovely.mod_dir .. "/Showman/Showman_UI.lua")))()
-  assert(load(nativefs.read(lovely.mod_dir .. "/Showman/hash.lua")))()
+	assert(load(nativefs.read(Showman.PATH .. "/Showman_UI.lua")))()
 
 end
 
