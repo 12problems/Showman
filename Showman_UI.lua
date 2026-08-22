@@ -7,8 +7,9 @@ Showman.SEEK.card_count = 6
 
 local analyzeMax = {100, 1000, 10000}
 
-G.FUNCS.change_search_ante = function(x)
-	Showman.config.SEEK.search_ante = x.to_val
+G.FUNCS.change_search_queue = function(x)
+	Showman.config.SEEK.search_queue = x.to_val
+	Showman.config.SEEK.search_queueID = x.to_key
 	Showman.writeConfig()
 end
 
@@ -28,25 +29,12 @@ G.FUNCS.change_search_depth = function(x)
 
 end
 
-G.FUNCS.set_to_current_ante = function(x)
-	if G.STAGE == G.STAGES.RUN then
-		Showman.config.SEEK.search_ante = G.GAME.round_resets.ante
-		Showman.writeConfig()
-		--ante_cycle_page
-		local ante_page_cycle = G.OVERLAY_MENU:get_UIE_by_ID("ante_cycle_page")
-		local ref = ante_page_cycle.children[1].config.ref_table
-		ref.current_option = Showman.config.SEEK.search_ante
-		ref.current_option_val = ref.options[ref.current_option]
-		ante_page_cycle.children[1].UIBox:recalculate()
-	end
-end
-
 Showman.ui = {}
 
 -- Showman.UI (capitalized - distinct from the Showman.ui state table above) holds
 -- the rendering helpers shared by analyze, the initial create_tabs render, and the
 -- page-cycle callback. All three used to carry their own copy of "resolve a center
--- from Showman.ui_jokers by name, build a Card, apply edition, emplace."
+-- from Showman.ui_jokers by key, build a Card, apply edition/stickers, emplace."
 Showman.UI = {}
 
 function Showman.UI.clear_result_cards()
@@ -62,31 +50,29 @@ function Showman.UI.clear_result_cards()
 end
 
 -- Renders the current page (Showman.ui_search_page) of Showman.ui_jokers /
--- ui_editions into Showman.ui_card_area.
+-- ui_editions / ui_stickers into Showman.ui_card_area. Showman.ui_jokers holds
+-- center keys (e.g. "j_blueprint"), not display names - resolved with a direct
+-- G.P_CENTERS lookup instead of a linear scan for the matching .name.
 function Showman.UI.render_result_page()
 	for i = 1, Showman.SEEK.card_count do
 		for j = 1, #Showman.ui_card_area do
 			local index = (i+(j-1)*Showman.SEEK.card_count + (Showman.SEEK.card_count*#Showman.ui_card_area*(Showman.ui_search_page - 1)))-1
-			local center = nil
-			for kk, vv in pairs(G.P_CENTERS) do
-				if vv.name == nil then goto continue end
-				if vv.name == Showman.ui_jokers[index] then
-					center = vv
-					break
-				end
-				::continue::
-			end
+			local center = G.P_CENTERS[Showman.ui_jokers[index]]
 			if not center then
 				break
 			end
 			local card = Card(Showman.ui_card_area[j].T.x + Showman.ui_card_area[j].T.w/2, Showman.ui_card_area[j].T.y, G.CARD_W*Showman.SEEK.scale, G.CARD_H*Showman.SEEK.scale, nil, center)
 			local edition = Showman.ui_editions[index]
+			local sticker = Showman.ui_stickers[index]
 			if edition == "Foil" then edition = {foil = true}
 			elseif edition == "Holo" then edition = {holo = true}
 			elseif edition == "Polychrome" then edition = {polychrome = true}
 			elseif edition == "Negative" then edition = {negative = true}
 			else edition = nil end
 			card:set_edition(edition, true, true)
+			if sticker[1] then card:set_eternal(true) end
+			if sticker[2] then card:set_perishable(true) end
+			if sticker[3] then card:set_rental(true) end
 			card.sticker = get_joker_win_sticker(center)
 			Showman.ui_card_area[j]:emplace(card)
 		end
@@ -101,9 +87,10 @@ G.FUNCS.analyze = function(x)
 		for i = 1, math.ceil(Showman.config.SEEK.search_depth/(Showman.SEEK.card_count*#Showman.ui_card_area)) do
 			table.insert(Showman.joker_options, localize('k_page')..' '..tostring(i)..'/'..tostring(math.ceil(Showman.config.SEEK.search_depth/(Showman.SEEK.card_count*#Showman.ui_card_area))))
 		end
-		local out, cards, editions = generateShopAnte(Showman.config.SEEK.search_depth, Showman.config.SEEK.search_ante)
+		local out, cards, editions, stickers = generateWithOptions(Showman.config.SEEK.search_depth, Showman.config.SEEK.search_queue)
 		Showman.ui_jokers = cards
 		Showman.ui_editions = editions
+		Showman.ui_stickers = stickers
 		Showman.ui_search_page = 1
 
 		local jk_page_cycle = G.OVERLAY_MENU:get_UIE_by_ID("showman_joker_page")
@@ -121,7 +108,7 @@ G.FUNCS.options = function(e)
 	Showman.G_FUNCS_options_ref(e)
 end
 
-Showman.antes = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39}
+Showman.antes = {"Shop", "Rare Queue", "Wraith/Rare Skip", "Judgement", "Spectral (Shop)", "Spectral (Pack)", "Tarot (Pack)"}
 
 Showman.ui_card_area = {}
 Showman.joker_options = {}
@@ -204,7 +191,7 @@ function create_tabs(args)
 										{
 											n = G.UIT.T,
 											config = {
-												text = "Ante",
+												text = "Queue",
 												colour = G.C.WHITE,
 												scale = 0.45
 											}
@@ -223,15 +210,15 @@ function create_tabs(args)
 											w = 4,
 											h = 0.3,
 											cycle_shoulders = true,
-											opt_callback = "change_search_ante",
-											current_option = Showman.config.SEEK.search_ante or 1,
+											opt_callback = "change_search_queue",
+											current_option = Showman.config.SEEK.search_queueID or 1,
 											colour = G.C.PURPLE,
-											no_pips = true,
+											--no_pips = true,
 											focus_args = {snap_to = true, nav = 'wide'}
 										})
 									}
 								},
-								{
+								--[[{
 									n = G.UIT.R,
 									config = {
 										align = "cm",
@@ -244,7 +231,7 @@ function create_tabs(args)
 											colour = G.C.PURPLE
 										})
 									}
-								},
+								},]]
 								{
 									n = G.UIT.R,
 									config = {
@@ -348,6 +335,7 @@ end
 
 Showman.ui_jokers = {}
 Showman.ui_editions = {}
+Showman.ui_stickers = {}
 
 Showman.ui.last_page = nil
 

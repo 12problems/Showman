@@ -4,4 +4,4 @@
 --- PREFIX: showman
 --- MOD_AUTHOR: [12problems]
 --- MOD_DESCRIPTION: The Right Way to do informed rerolling
---- VERSION: 1.0.0
+--- VERSION: 1.1

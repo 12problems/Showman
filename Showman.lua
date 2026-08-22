@@ -6,7 +6,8 @@ Showman.config = {
   SEEK = {
     search_depth = 100,
     search_depthID = 1,
-    search_ante = 1,
+    search_queue = "Shop",
+    search_queueID = 1,
     apply_showman = false,
   },
 }
