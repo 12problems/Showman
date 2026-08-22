@@ -43,12 +43,15 @@ end
 
 Showman.ui = {}
 
-G.FUNCS.analyze = function(x)
-	local out = ""
-	local cards = {}
-	local editions = {}
+-- Showman.UI (capitalized - distinct from the Showman.ui state table above) holds
+-- the rendering helpers shared by analyze, the initial create_tabs render, and the
+-- page-cycle callback. All three used to carry their own copy of "resolve a center
+-- from Showman.ui_jokers by name, build a Card, apply edition, emplace."
+Showman.UI = {}
+
+function Showman.UI.clear_result_cards()
 	for j = 1, #Showman.ui_card_area do
-		for i = #Showman.ui_card_area[j].cards,1, -1 do
+		for i = #Showman.ui_card_area[j].cards, 1, -1 do
 			if Showman.ui_card_area[j].cards[i] == nil then goto continuee end
 			local c = Showman.ui_card_area[j]:remove_card(Showman.ui_card_area[j].cards[i])
 			c:remove()
@@ -56,13 +59,49 @@ G.FUNCS.analyze = function(x)
 			::continuee::
 		end
 	end
+end
+
+-- Renders the current page (Showman.ui_search_page) of Showman.ui_jokers /
+-- ui_editions into Showman.ui_card_area.
+function Showman.UI.render_result_page()
+	for i = 1, Showman.SEEK.card_count do
+		for j = 1, #Showman.ui_card_area do
+			local index = (i+(j-1)*Showman.SEEK.card_count + (Showman.SEEK.card_count*#Showman.ui_card_area*(Showman.ui_search_page - 1)))-1
+			local center = nil
+			for kk, vv in pairs(G.P_CENTERS) do
+				if vv.name == nil then goto continue end
+				if vv.name == Showman.ui_jokers[index] then
+					center = vv
+					break
+				end
+				::continue::
+			end
+			if not center then
+				break
+			end
+			local card = Card(Showman.ui_card_area[j].T.x + Showman.ui_card_area[j].T.w/2, Showman.ui_card_area[j].T.y, G.CARD_W*Showman.SEEK.scale, G.CARD_H*Showman.SEEK.scale, nil, center)
+			local edition = Showman.ui_editions[index]
+			if edition == "Foil" then edition = {foil = true}
+			elseif edition == "Holo" then edition = {holo = true}
+			elseif edition == "Polychrome" then edition = {polychrome = true}
+			elseif edition == "Negative" then edition = {negative = true}
+			else edition = nil end
+			card:set_edition(edition, true, true)
+			card.sticker = get_joker_win_sticker(center)
+			Showman.ui_card_area[j]:emplace(card)
+		end
+	end
+end
+
+G.FUNCS.analyze = function(x)
+	Showman.UI.clear_result_cards()
 	if G.STAGE == G.STAGES.RUN then
 		G.SETTINGS.paused = true
 		Showman.joker_options = {}
 		for i = 1, math.ceil(Showman.config.SEEK.search_depth/(Showman.SEEK.card_count*#Showman.ui_card_area)) do
 			table.insert(Showman.joker_options, localize('k_page')..' '..tostring(i)..'/'..tostring(math.ceil(Showman.config.SEEK.search_depth/(Showman.SEEK.card_count*#Showman.ui_card_area))))
 		end
-		out, cards, editions = generateShopAnte(Showman.config.SEEK.search_depth, Showman.config.SEEK.search_ante)
+		local out, cards, editions = generateShopAnte(Showman.config.SEEK.search_depth, Showman.config.SEEK.search_ante)
 		Showman.ui_jokers = cards
 		Showman.ui_editions = editions
 		Showman.ui_search_page = 1
@@ -73,35 +112,7 @@ G.FUNCS.analyze = function(x)
 		ref.current_option_val = ref.options[ref.current_option]
 		jk_page_cycle.children[1].UIBox:recalculate()
 
-		for i = 1, Showman.SEEK.card_count do
-			for j = 1, #Showman.ui_card_area do
-				local center = nil
-				for kk, vv in pairs(G.P_CENTERS) do
-					if vv.name == nil then goto continue end
-					b = false
-					if vv.name == cards[(i+(j-1)*Showman.SEEK.card_count)-1] then
-						center = vv
-						b = true
-						break
-					end
-					if b then break end
-					::continue::
-				end
-				if not center then 
-					break
-				end
-				local card = Card(Showman.ui_card_area[j].T.x + Showman.ui_card_area[j].T.w/2, Showman.ui_card_area[j].T.y, G.CARD_W*Showman.SEEK.scale, G.CARD_H*Showman.SEEK.scale, nil, center)
-				local edition = editions[(i+(j-1)*Showman.SEEK.card_count + (Showman.SEEK.card_count*#Showman.ui_card_area*(Showman.ui_search_page - 1)))-1]
-				if edition == "Foil" then edition = {foil = true} 
-				elseif edition == "Holo" then edition = {holo = true}
-				elseif edition == "Polychrome" then edition = {polychrome = true}
-				elseif edition == "Negative" then edition = {negative = true}
-				else edition = nil end
-				if edition then card:set_edition(edition, true, true) end
-				card.sticker = get_joker_win_sticker(center)
-				Showman.ui_card_area[j]:emplace(card)
-			end
-		end
+		Showman.UI.render_result_page()
 	end
 end
 
@@ -145,41 +156,7 @@ function create_tabs(args)
 				end
 				
 				if G.GAME.pseudorandom.seed ~= nil then
-					for i = 1, Showman.SEEK.card_count do
-						for j = 1, #Showman.ui_card_area do
-							local center = nil
-							for kk, vv in pairs(G.P_CENTERS) do
-								if vv.name == nil then goto continue end
-								b = false
-								if vv.name == Showman.ui_jokers[(i+(j-1)*Showman.SEEK.card_count + (Showman.SEEK.card_count*#Showman.ui_card_area*(Showman.ui_search_page - 1)))-1] then
-									center = vv
-									b = true
-									break
-								end
-								if b then break end
-								::continue::
-							end
-							if not center then 
-								break
-							end
-							local card = Card(Showman.ui_card_area[j].T.x + Showman.ui_card_area[j].T.w/2, Showman.ui_card_area[j].T.y, G.CARD_W*Showman.SEEK.scale, G.CARD_H*Showman.SEEK.scale, nil, center)
-							local edition = Showman.ui_editions[(i+(j-1)*Showman.SEEK.card_count + (Showman.SEEK.card_count*#Showman.ui_card_area*(Showman.ui_search_page - 1)))-1]
-							if edition == "Foil" then 
-								edition = {foil = true} 
-							elseif edition == "Holo" then
-								edition = {holo = true}
-							elseif edition == "Polychrome" then 
-								edition = {polychrome = true}
-							elseif edition == "Negative" then 
-								edition = {negative = true}
-							else 
-								edition = nil
-							end
-							card:set_edition(edition, true, true)
-							card.sticker = get_joker_win_sticker(center)
-							Showman.ui_card_area[j]:emplace(card)
-						end
-					end
+					Showman.UI.render_result_page()
 				end
 
 				-- UI Menu --
@@ -383,41 +360,6 @@ G.FUNCS.showman_ui_joker_page = function(args)
 	if G.STAGE ~= G.STAGES.RUN then return end
 	Showman.ui_search_page = args.cycle_config.current_option
 
-	for j = 1, #Showman.ui_card_area do
-		for i = #Showman.ui_card_area[j].cards,1, -1 do
-			local c = Showman.ui_card_area[j]:remove_card(Showman.ui_card_area[j].cards[i])
-			c:remove()
-			c = nil
-		end
-	end
-
-    for i = 1, Showman.SEEK.card_count do
-        for j = 1, #Showman.ui_card_area do
-            local center = nil
-			for kk, vv in pairs(G.P_CENTERS) do
-				if vv.name == nil then goto continue end
-				b = false
-				if vv.name == Showman.ui_jokers[(i+(j-1)*Showman.SEEK.card_count + (Showman.SEEK.card_count*#Showman.ui_card_area*(args.cycle_config.current_option - 1)))-1] then
-					center = vv
-					b = true
-					break
-				end
-				if b then break end
-				::continue::
-			end
-			if not center then 
-				break
-			end
-			local card = Card(Showman.ui_card_area[j].T.x + Showman.ui_card_area[j].T.w/2, Showman.ui_card_area[j].T.y, G.CARD_W*Showman.SEEK.scale, G.CARD_H*Showman.SEEK.scale, nil, center)
-			local edition = Showman.ui_editions[(i+(j-1)*Showman.SEEK.card_count + (Showman.SEEK.card_count*#Showman.ui_card_area*(Showman.ui_search_page - 1)))-1]
-			if edition == "Foil" then edition = {foil = true} 
-			elseif edition == "Holo" then edition = {holo = true}
-			elseif edition == "Polychrome" then edition = {polychrome = true}
-			elseif edition == "Negative" then edition = {negative = true}
-			else edition = nil end
-			card:set_edition(edition, true, true)
-			card.sticker = get_joker_win_sticker(center)
-			Showman.ui_card_area[j]:emplace(card)
-		end
-    end
+	Showman.UI.clear_result_cards()
+	Showman.UI.render_result_page()
 end
