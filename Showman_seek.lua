@@ -77,6 +77,300 @@ function generateShopUntil(joker_name)
 	return output, cards
 end
 
+-- === Shared pool-pick helper (resample-loop boilerplate used by several
+-- generators below). ===
+local function pseudorandom_pool_pick(_pool, _pool_key)
+    local picked = Showman.FUNC.pseudorandom_element(_pool, Showman.FUNC.pseudoseed(_pool_key))
+    local it = 1
+    while picked == 'UNAVAILABLE' do
+        it = it + 1
+        picked = Showman.FUNC.pseudorandom_element(_pool, Showman.FUNC.pseudoseed(_pool_key..'_resample'..it))
+    end
+    return picked
+end
+
+-- === Skip Tags (always-visible per-ante side panel) ===
+--
+-- IMPORTANT, confirmed against the actually-installed Steamodded build (its
+-- lovely-patched functions/common_events.lua, not pure vanilla BalatroSource):
+-- Steamodded's own get_current_pool unconditionally ante-suffixes the pool key
+-- it returns with the LIVE G.GAME.round_resets.ante (`return _pool, _pool_key
+-- ..(not _legendary and G.GAME.round_resets.ante or '')`) - vanilla itself
+-- doesn't do this, but the installed SMODS build does, and that's what's
+-- actually running. So get_next_tag_key's pool key really is "Tag"..ante (e.g.
+-- "Tag1", "Tag2", ...), independently keyed per ante - directly predictable by
+-- formula for any future ante, same as shop/pack cards, NOT a single
+-- continuously-advancing chain (an earlier pass through this file assumed pure
+-- vanilla's un-suffixed "Tag" key and was wrong - caught by live A/B testing
+-- via the ClaudeControl testing mod: predicted ante-2 tags with the un-suffixed
+-- key, then actually played to ante 2 for real and compared).
+--
+-- Two-call quirk still holds though: vanilla calls get_next_tag_key() twice per
+-- ante transition with no distinguishing argument (Small then Big) - since
+-- Showman.FUNC.pseudoseed auto-advances its per-key chain on every call, two
+-- calls in a row for the same ante key naturally reproduce that.
+function create_pseudotag_for_ante(ante)
+    local _pool, _pool_key = Showman.FUNC.get_current_pool('Tag', nil, nil, nil, ante)
+    return pseudorandom_pool_pick(_pool, _pool_key)
+end
+
+-- Generates Small/Big skip tags for `target_ante`. The real CURRENT ante's pair
+-- is already decided and visible - read it straight off
+-- G.GAME.round_resets.blind_tags rather than reformulate, since by the time
+-- Showman can query it, "Tag"..real_ante's chain has already been advanced by
+-- the real roll and a fresh formula call would silently compute the position
+-- *after* that (wrong). A past ante (real_ante has already moved beyond
+-- target_ante) is genuinely unrecoverable the same way - returns nil. Any
+-- future ante's key hasn't been touched yet in the real G.GAME.pseudorandom
+-- table, so a direct formula call from a fresh snapshot is exact - re-seeded
+-- fresh every call (same as generateWithOptions/generateShopUntil) so this is a
+-- pure function of (target_ante, real game state) with no cache to keep in
+-- sync. "Sometimes more than 2" (a rolled Double Tag grants another tag
+-- immediately) isn't chased here - always exactly Small + Big.
+function generateSkipTagsForAnte(target_ante)
+    local real_ante = (G.GAME and G.GAME.round_resets and G.GAME.round_resets.ante) or 1
+    if target_ante == real_ante then
+        local bt = G.GAME.round_resets.blind_tags
+        if not bt then return nil end
+        return { Small = bt.Small, Big = bt.Big }
+    elseif target_ante < real_ante then
+        return nil -- already rerolled past this point for real; not recoverable
+    end
+
+    Showman.SEEK.GAME.pseudorandom = shallowcopy(G.GAME.pseudorandom)
+    Showman.SEEK.GAME.pseudorandom.seed = G.GAME.pseudorandom.seed
+    Showman.SEEK.GAME.pseudorandom.hashed_seed = G.GAME.pseudorandom.hashed_seed
+
+    return {
+        Small = create_pseudotag_for_ante(target_ante),
+        Big = create_pseudotag_for_ante(target_ante),
+    }
+end
+
+-- === Bosses (always-visible per-ante side panel) ===
+--
+-- Mirrors get_new_boss() (functions/common_events.lua, confirmed against the
+-- installed Steamodded build's own copy - it adds an object-weights/pool-hook
+-- branch Showman doesn't replicate, but falls through to the same vanilla
+-- eligibility+pseudoseed('boss') logic when those optional features are off,
+-- which they are here): eligibility is ante-gated (regular bosses need ante >=
+-- boss.min and not a win_ante multiple; "showdown" bosses are the reverse, only
+-- on win_ante multiples), then narrowed to whichever eligible bosses have been
+-- used the fewest times this run (G.GAME.bosses_used), then picked with
+-- pseudoseed('boss') - UNLIKE tags/packs, this key is genuinely never
+-- ante-suffixed by Steamodded either (confirmed the same way, by reading its
+-- lovely-patched common_events.lua directly), so it's a single persistent chain
+-- for the whole run, only rerolled at the same ante-transition moment as tags
+-- (reset_blinds(), when blind_states.Boss == 'Defeated'). So unlike
+-- generateSkipTagsForAnte, a future ante's boss can't be looked up by a direct
+-- formula call - it requires replaying every not-yet-rolled pick in order,
+-- locally tracking bosses_used as we go so later picks in the same simulation
+-- see the same "fewest used" narrowing vanilla would. The current ante's boss is
+-- already decided and live-readable (G.GAME.round_resets.blind_choices.Boss),
+-- same as tags. Verified live via ClaudeControl (predicted ante 2's boss from a
+-- fresh ante-1 snapshot, then actually played to ante 2 and compared - matched).
+local function get_eligible_bosses(ante, bosses_used)
+    local win_ante = G.GAME.win_ante or 8
+    local eligible = {}
+    for k, v in pairs(G.P_BLINDS) do
+        if v.boss then
+            if not v.boss.showdown and (v.boss.min <= math.max(1, ante) and (math.max(1, ante) % win_ante ~= 0 or ante < 2)) then
+                eligible[k] = true
+            elseif v.boss.showdown and (ante % win_ante == 0) and ante >= 2 then
+                eligible[k] = true
+            end
+        end
+    end
+    for k in pairs(G.GAME.banned_keys) do
+        eligible[k] = nil
+    end
+
+    local min_use = 100
+    for k in pairs(bosses_used) do
+        if eligible[k] then
+            eligible[k] = bosses_used[k]
+            if eligible[k] <= min_use then min_use = eligible[k] end
+        end
+    end
+    for k in pairs(eligible) do
+        if eligible[k] and eligible[k] > min_use then eligible[k] = nil end
+    end
+    return eligible
+end
+
+function generateBossForAnte(target_ante)
+    local real_ante = (G.GAME and G.GAME.round_resets and G.GAME.round_resets.ante) or 1
+    if target_ante == real_ante then
+        return G.GAME.round_resets.blind_choices and G.GAME.round_resets.blind_choices.Boss or nil
+    elseif target_ante < real_ante then
+        return nil -- already rerolled past this point for real; not recoverable
+    end
+
+    Showman.SEEK.GAME.pseudorandom = shallowcopy(G.GAME.pseudorandom)
+    Showman.SEEK.GAME.pseudorandom.seed = G.GAME.pseudorandom.seed
+    Showman.SEEK.GAME.pseudorandom.hashed_seed = G.GAME.pseudorandom.hashed_seed
+    local bosses_used = shallowcopy(G.GAME.bosses_used)
+
+    local boss = nil
+    for ante = real_ante + 1, target_ante do
+        local eligible = get_eligible_bosses(ante, bosses_used)
+        local _, picked = Showman.FUNC.pseudorandom_element(eligible, Showman.FUNC.pseudoseed('boss'))
+        boss = picked
+        bosses_used[boss] = (bosses_used[boss] or 0) + 1
+    end
+    return boss
+end
+
+-- === Packs (2 shop booster-pack slots x 3 shop visits per ante) ===
+--
+-- Mirrors vanilla's get_pack('shop_pack') (functions/common_events.lua), called
+-- twice per shop visit for its 2 pack slots (game.lua: `for i = 1, 2 do
+-- get_pack('shop_pack') end`) - key = ('shop_pack')..ante, genuinely ante-suffixed
+-- (get_pack has its own self-contained weighted pick over
+-- G.P_CENTER_POOLS['Booster'], independent of get_current_pool, so this one
+-- isn't affected by the vanilla/Steamodded ante-suffix difference above), so
+-- unlike tags/bosses any future ante's packs CAN be looked up directly without
+-- replaying earlier picks.
+--
+-- IMPORTANT: there are 3 shop visits per ante (after the Small, Big, and Boss
+-- blinds), not 1 - each one calls get_pack('shop_pack'..ante) fresh for its own
+-- 2 slots, and since pseudoseed auto-advances the SAME 'shop_pack'..ante key
+-- every call, the 3 visits are 3 sequential pairs off one chain, not 3 copies
+-- of the same pair. Confirmed live via ClaudeControl (shop 1 of an ante gave a
+-- different pair than shop 2 of the very same ante, both compared against
+-- real G.shop_booster contents) - this was originally missed (only the first
+-- shop's pair was predicted) until the user pointed out there are 3 shops.
+--
+-- KNOWN LIMITATION: vanilla's very first pack of a run (G.GAME.first_shop_buffoon
+-- not yet set) is a special case resolved with plain math.random(1,2) - genuine
+-- engine randomness, not seed-derived - so it can't be predicted. That only ever
+-- applies to slot 1 of shop visit 1 of the real current ante, before any shop
+-- has been visited this run at all; every other slot resolves normally. Mirrors
+-- the exact short-circuit vanilla's get_pack has (the special case returns
+-- before ever touching the pseudoseed chain), so the picks after it land on the
+-- same values vanilla's real draws would.
+local function pick_pack_center(ante)
+    local cume = 0
+    for _, v in ipairs(G.P_CENTER_POOLS['Booster']) do
+        if not G.GAME.banned_keys[v.key] then cume = cume + (v.weight or 1) end
+    end
+    local poll = Showman.FUNC.pseudorandom(Showman.FUNC.pseudoseed('shop_pack'..ante)) * cume
+    local it, center = 0, nil
+    for _, v in ipairs(G.P_CENTER_POOLS['Booster']) do
+        if not G.GAME.banned_keys[v.key] then
+            it = it + (v.weight or 1)
+            if it >= poll and it - (v.weight or 1) <= poll then center = v; break end
+        end
+    end
+    return center and center.key or nil
+end
+
+-- Returns {{shop1_slot1, shop1_slot2}, {shop2_slot1, shop2_slot2}, {shop3_slot1,
+-- shop3_slot2}} - shop1_slot1 is nil exactly when vanilla's own unpredictable
+-- first-pack-of-the-run special case applies (see above).
+function generateShopPacksForAnte(ante)
+    local real_ante = (G.GAME and G.GAME.round_resets and G.GAME.round_resets.ante) or 1
+    Showman.SEEK.GAME.pseudorandom = shallowcopy(G.GAME.pseudorandom)
+    Showman.SEEK.GAME.pseudorandom.seed = G.GAME.pseudorandom.seed
+    Showman.SEEK.GAME.pseudorandom.hashed_seed = G.GAME.pseudorandom.hashed_seed
+
+    local first_pack_special = ante == real_ante and not G.GAME.first_shop_buffoon and not G.GAME.banned_keys['p_buffoon_normal_1']
+    local shops = {}
+    for shop_i = 1, 3 do
+        local slot1
+        -- Not `(shop_i==1 and first_pack_special) and nil or pick_pack_center(ante)`
+        -- - that and/or idiom breaks when the "true" branch value is itself
+        -- nil/false (`X and nil` is always nil, so the `or` unconditionally
+        -- falls through) - a real bug caught live earlier this session.
+        if not (shop_i == 1 and first_pack_special) then
+            slot1 = pick_pack_center(ante)
+        end
+        local slot2 = pick_pack_center(ante)
+        shops[shop_i] = { slot1, slot2 }
+    end
+    return shops
+end
+
+-- === Pack contents (hover preview) ===
+--
+-- Mirrors Card:open()'s per-kind card generation (card.lua, confirmed against
+-- the installed Steamodded build's own lovely-patched copy) - same real
+-- key_append strings ('ar1'/'pl1'/'spe'/'sta'/'buf') vanilla uses, routed through
+-- create_card -> get_current_pool, which (per the note on generateSkipTagsForAnte
+-- above) the installed Steamodded build ante-suffixes automatically. So - unlike
+-- what a pure-vanilla reading would suggest - pack contents ARE directly
+-- predictable by formula for any future ante, no chain-replay needed, same as
+-- the pack-identity prediction above.
+local function pseudocard_key_only(_type, key_append, ante)
+    local _pool, _pool_key = Showman.FUNC.get_current_pool(_type, nil, nil, key_append, ante)
+    return pseudorandom_pool_pick(_pool, _pool_key)
+end
+
+-- Standard packs' seal roll goes through Steamodded's own SMODS.poll_seal
+-- (src/utils.lua) rather than vanilla's plain 4-branch roll - a weighted pick
+-- over G.P_CENTER_POOLS['Seal'] (order matters: it's a weighted-range pick, so
+-- this must walk the pool in the same array order SMODS does, not pairs()
+-- order). mod=10 matches Card:open()'s own `SMODS.poll_seal({mod = 10})` call.
+-- Presence-roll key 'stdseal'..ante, type-roll key 'stdsealtype'..ante (SMODS's
+-- default key 'stdseal' with args.type_key uncomputed collapses to exactly
+-- these two strings).
+local function predict_pack_seal(ante)
+    local pool = G.P_CENTER_POOLS['Seal'] or {}
+    local available, base_weight = {}, 0
+    for _, v in ipairs(pool) do
+        local w = v.weight or 10
+        if w > 0 then
+            available[#available + 1] = { key = v.key, weight = (v.get_weight and v:get_weight()) or w }
+            base_weight = base_weight + w
+        end
+    end
+    if #available == 0 then return nil end
+    local total_weight = base_weight + (base_weight / 2 * 98) -- base seal rate is 2%
+    local type_weight = 0
+    for _, v in ipairs(available) do type_weight = type_weight + v.weight end
+
+    if Showman.FUNC.pseudorandom(Showman.FUNC.pseudoseed('stdseal'..ante)) > 1 - (type_weight * 10 / total_weight) then
+        local seal_poll = Showman.FUNC.pseudorandom(Showman.FUNC.pseudoseed('stdsealtype'..ante))
+        local weight_i = 0
+        for _, v in ipairs(available) do
+            weight_i = weight_i + v.weight
+            if seal_poll > 1 - (weight_i / type_weight) then return v.key end
+        end
+    end
+    return nil
+end
+
+-- Returns an array of {key = center_key, edition = edition_or_nil, seal = seal_or_nil}.
+function generatePackContents(pack_key, ante)
+    local pack_center = G.P_CENTERS[pack_key]
+    if not pack_center or pack_center.set ~= 'Booster' then return {} end
+    local kind = pack_center.kind
+    local count = pack_center.config.extra
+
+    Showman.SEEK.GAME.pseudorandom = shallowcopy(G.GAME.pseudorandom)
+    Showman.SEEK.GAME.pseudorandom.seed = G.GAME.pseudorandom.seed
+    Showman.SEEK.GAME.pseudorandom.hashed_seed = G.GAME.pseudorandom.hashed_seed
+
+    local cards = {}
+    for i = 1, count do
+        if kind == 'Arcana' then
+            cards[i] = { key = pseudocard_key_only('Tarot', 'ar1', ante) }
+        elseif kind == 'Celestial' then
+            cards[i] = { key = pseudocard_key_only('Planet', 'pl1', ante) }
+        elseif kind == 'Spectral' then
+            cards[i] = { key = pseudocard_key_only('Spectral', 'spe', ante) }
+        elseif kind == 'Buffoon' then
+            cards[i] = { key = pseudocard_key_only('Joker', 'buf', ante), edition = Showman.FUNC.poll_edition('edibuf'..ante) }
+        elseif kind == 'Standard' then
+            local is_enhanced = Showman.FUNC.pseudorandom(Showman.FUNC.pseudoseed('stdset'..ante)) > 0.6
+            local ekey = is_enhanced and pseudocard_key_only('Enhanced', 'sta', ante) or 'c_base'
+            local edition = Showman.FUNC.poll_edition('standard_edition'..ante, 2, true)
+            cards[i] = { key = ekey, edition = edition, seal = predict_pack_seal(ante) }
+        end
+    end
+    return cards
+end
+
 -- The Illusion voucher can swap a playing card's edition after the fact. Shared by
 -- both branches of create_pseudocard_for_options below (previously duplicated, and
 -- the non-Shop copy had a stale `v.type` check left over from a rename - `v` is the
@@ -184,6 +478,53 @@ Showman.FUNC.pool_exclude_hook = nil
 -- multiplayer awareness). Showman_order.lua sets this to force ante 0 while The
 -- Order is active. See resolve_search_ante.
 Showman.FUNC.ante_override_hook = nil
+
+-- === RNG model detection ===
+--
+-- Whether get_current_pool's returned pool key gets ante-suffixed is NOT
+-- consistent between environments: pure vanilla (BalatroSource) never
+-- ante-suffixes it, but the Steamodded build most players actually run always
+-- does (`return _pool, _pool_key..(not _legendary and G.GAME.round_resets.ante
+-- or '')` in its lovely-patched functions/common_events.lua) - confirmed both
+-- by reading that patched source directly and empirically, by predicting Skip
+-- Tags with each formula and comparing against a real live run via the
+-- ClaudeControl testing mod. An earlier pass through this file assumed pure
+-- vanilla and shipped a wrong formula as a result.
+--
+-- Rather than hardcoding "if SMODS loaded then ante-suffix" (fragile - could
+-- silently stop matching on a future Steamodded update, and doesn't obviously
+-- generalize to whatever Multiplayer/other mods patch on top), this probes the
+-- REAL currently-loaded global get_current_pool directly and observes what it
+-- actually does with a harmless, side-effect-free call (the 'Tag' branch's
+-- culling loop never touches pseudorandom state). That self-adapts to
+-- whatever combination of vanilla/Steamodded/other-mod patches is really
+-- running, including ones not written yet - "vanilla", "Steamodded", and
+-- "Multiplayer-on-top-of-Steamodded" all reduce to the same one boolean this
+-- actually depends on, so there's no need to separately special-case each one.
+--
+-- Showman.config.SEEK.rng_ante_suffix mirrors this as a 3-way user override
+-- ("Auto"/"On"/"Off") for the rare case detection itself is ever wrong -
+-- surfaced as a UI toggle in Showman_UI.lua.
+Showman.RNG = Showman.RNG or {}
+
+function Showman.RNG.detect_ante_suffix()
+    local override = Showman.config.SEEK.rng_ante_suffix
+    if override == "On" then return true end
+    if override == "Off" then return false end
+
+    if Showman.RNG.ante_suffix_cache ~= nil then return Showman.RNG.ante_suffix_cache end
+    local ok, _, probe_key = pcall(get_current_pool, 'Tag', nil, nil, nil)
+    if ok and probe_key then
+        Showman.RNG.ante_suffix_cache = (probe_key ~= 'Tag')
+    else
+        -- Can't probe yet (too early, no G.GAME) - don't cache a guess, and
+        -- default to the currently-known-correct behavior (matches the
+        -- installed Steamodded build this mod actually ships against) rather
+        -- than silently reverting to a formula already found to be wrong.
+        return true
+    end
+    return Showman.RNG.ante_suffix_cache
+end
 
 function Showman.FUNC.pseudorandom_element(_t, seed)
   if seed then math.randomseed(seed) end
@@ -447,6 +788,18 @@ function Showman.FUNC.poll_edition(_key, _mod, _no_neg, _guaranteed, _options)
 end
 
 function Showman.FUNC.get_current_pool(_type, _rarity, _legendary, _append, ante)
+    -- Resolved BEFORE touching G.ARGS.TEMP_POOL below, not at the end of this
+    -- function - Showman.RNG.detect_ante_suffix's first-ever (uncached) call
+    -- probes the REAL global get_current_pool, which ALSO uses G.ARGS.TEMP_POOL
+    -- as its own scratch table. Calling it after this function had already
+    -- started building _pool into that same shared table let the nested probe
+    -- silently wipe/corrupt it via EMPTY() before this function's own `return
+    -- _pool, ...` ran - a real live crash ("attempt to index local 'center' (a
+    -- nil value)" in Showman.UI.render_result_page, from a pool that came back
+    -- empty on the Shop queue's first Analyze of a session). Resolving it here
+    -- first means any nested corruption happens before this call starts using
+    -- the table, not after.
+    local ante_suffix = Showman.RNG.detect_ante_suffix()
 
     --print("*** " .. _type .. " " .. (_rarity or '') .. " " .. (_append or ''))
     --create the pool
@@ -545,7 +898,16 @@ function Showman.FUNC.get_current_pool(_type, _rarity, _legendary, _append, ante
         end
     end
 
-    return _pool, _pool_key..(not _legendary and ante or '')
+    -- Ante-suffixing is conditional on the live-detected RNG model (ante_suffix,
+    -- resolved at the top of this function - see its comment there) rather than
+    -- unconditional - this single change is what makes every caller (Tags,
+    -- Shop, Rare Queue, Judgement, Spectral, Tarot, pack contents, ...)
+    -- automatically track whichever environment is actually running instead of
+    -- assuming one.
+    if not _legendary and ante_suffix then
+        return _pool, _pool_key..ante
+    end
+    return _pool, _pool_key
 end
 
 
