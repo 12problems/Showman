@@ -503,14 +503,14 @@ Showman.FUNC.ante_override_hook = nil
 -- actually depends on, so there's no need to separately special-case each one.
 --
 -- Showman.config.SEEK.rng_ante_suffix mirrors this as a 3-way user override
--- ("Auto"/"On"/"Off") for the rare case detection itself is ever wrong -
--- surfaced as a UI toggle in Showman_UI.lua.
+-- ("Auto"/"Modded"/"Vanilla") for the rare case detection itself is ever
+-- wrong - surfaced as the "Seed Format" cycle in Showman_UI.lua.
 Showman.RNG = Showman.RNG or {}
 
 function Showman.RNG.detect_ante_suffix()
     local override = Showman.config.SEEK.rng_ante_suffix
-    if override == "On" then return true end
-    if override == "Off" then return false end
+    if override == "Modded" then return true end
+    if override == "Vanilla" then return false end
 
     if Showman.RNG.ante_suffix_cache ~= nil then return Showman.RNG.ante_suffix_cache end
     local ok, _, probe_key = pcall(get_current_pool, 'Tag', nil, nil, nil)

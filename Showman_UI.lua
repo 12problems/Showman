@@ -78,23 +78,27 @@ G.FUNCS.change_search_depth = function(x)
 	end
 end
 
--- RNG model override: "Auto" (default) lets Showman.RNG.detect_ante_suffix
--- (Showman_seek.lua) probe the live get_current_pool itself; "On"/"Off" force
--- the ante-suffix behavior manually for the rare case detection is wrong.
-Showman.rng_model_options = {"Auto", "On", "Off"}
+-- Seed Format override: what actually varies between environments is whether
+-- pool lookups fold the current ante into their random-seed key - vanilla
+-- doesn't, the Steamodded-patched game (and Multiplayer, which patches on top
+-- of Steamodded) does. "Auto" (default) lets Showman.RNG.detect_ante_suffix
+-- (Showman_seek.lua) probe the live get_current_pool itself and figure out
+-- which is actually running; "Modded"/"Vanilla" force that behavior manually
+-- for the rare case the probe is ever wrong.
+Showman.seed_format_options = {"Auto", "Modded", "Vanilla"}
 
-G.FUNCS.change_rng_model = function(x)
+G.FUNCS.change_seed_format = function(x)
 	Showman.config.SEEK.rng_ante_suffix = x.to_val == "Auto" and nil or x.to_val
 	Showman.writeConfig()
 	Showman.RNG.ante_suffix_cache = nil
 end
 
--- 1-based index into Showman.rng_model_options matching the saved override
+-- 1-based index into Showman.seed_format_options matching the saved override
 -- (nil/absent = "Auto"), for the cycle's initial current_option.
-local function rng_model_option_index()
+local function seed_format_option_index()
 	local override = Showman.config.SEEK.rng_ante_suffix
-	if override == "On" then return 2 end
-	if override == "Off" then return 3 end
+	if override == "Modded" then return 2 end
+	if override == "Vanilla" then return 3 end
 	return 1
 end
 
@@ -628,12 +632,12 @@ function create_tabs(args)
 									},
 									nodes = {
 										create_option_cycle({
-											label = "RNG Model",
+											label = "Seed Format",
 											w = 4,
-											options = Showman.rng_model_options,
-											opt_callback = "change_rng_model",
+											options = Showman.seed_format_options,
+											opt_callback = "change_seed_format",
 											colour = G.C.PURPLE,
-											current_option = rng_model_option_index()
+											current_option = seed_format_option_index()
 										})
 									}
 								},
