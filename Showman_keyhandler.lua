@@ -6,7 +6,7 @@ function Showman.key_press_update(key)
 	--  Print
 	--sendDebugMessage(key.." pressed a")
 	if key == "p" then
-		--generateShop(1000)
+		--generateWithOptions(1000, Showman.config.SEEK.search_queue)
 	elseif key == "l" then
 		--generateShopUntil("Ride the Bus")
 	end
